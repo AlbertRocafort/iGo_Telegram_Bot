@@ -1,0 +1,12 @@
+To run this bot you will need to install the following packages:
+	- networkx
+	- osmnx
+	- haversine
+	- staticmap
+	- python-telegram-bot
+
+To install the osmnx package you hace to execute the following sentences:
+	1. sudo apt install libspatialindex-dev
+	2. pip3 install --upgrade pip setuptools wheel
+	3. pip3 install --upgrade osmnx
+	4. pip3 install --upgrade staticmap
