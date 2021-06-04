@@ -1,5 +1,6 @@
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import igo
+import time
 
 
 
@@ -31,6 +32,7 @@ def start(update, context):
 	context.user_data['real_position'] = -1
 	context.user_data['false_position'] = -1
 	context.user_data['color_path'] = False
+	context.user_data['last_congestion_refresh'] = None
 
 	########################################################################################################################
 	context.user_data['last_time_refresh'] = -1
@@ -89,45 +91,56 @@ def author(update, context):
 def go(update, context):
 
 	# Agafem el desti que ens demanen del text del missatge i el passem a coordenades
-	dest_lat, dest_lon = _get_coords_from_message(update, context, 2)
+	
+	try:
+		dest_lat, dest_lon = _get_coords_from_message(update, context, 2)
+
+		# Ubicacio real com origen
+		if context.user_data['use_real_position'] == True:
+
+			# No tenim cap ubicacio guardada
+			if context.user_data['real_position'] == -1: result = 0	
+			
+			# Agafem la ubicacio que tenim guardada
+			else:
+				color = context.user_data['color_path']
+				org_lat, org_lon = context.user_data['real_position']
+
+				build_igraph = _need_to_build_igraph(context)
+
+				result = igo.shortest_path((org_lon, org_lat), (dest_lon, dest_lat), PATH_IMAGE, color, build_igraph)
 
 
-	# Ubicacio real com origen
-	if context.user_data['use_real_position'] == True:
-
-		# No tenim cap ubicacio guardada
-		if context.user_data['real_position'] == -1: result = 0	
-		
-		# Agafem la ubicacio que tenim guardada
+		# Ubicacio falsejada com origen
 		else:
 			color = context.user_data['color_path']
-			org_lat, org_lon = context.user_data['real_position']
-			result = igo.shortest_path((org_lon, org_lat), (dest_lon, dest_lat), PATH_IMAGE, color)
+			org_lat, org_lon = context.user_data['false_position']
+
+			build_igraph = _need_to_build_igraph(context)
+
+			result = igo.shortest_path((org_lon, org_lat), (dest_lon, dest_lat), PATH_IMAGE, color, build_igraph)
 
 
-	# Ubicacio falsejada com origen
-	else:
-		color = context.user_data['color_path']
-		org_lat, org_lon = context.user_data['false_position']
-		result = igo.shortest_path((org_lon, org_lat), (dest_lon, dest_lat), PATH_IMAGE, color)
+		# Es decideix que ha de mostrar el bot en funcio del resultat obtingut anteriorment
+		if result == 1:		# S'ha trobat un cami correctament
+			context.bot.send_photo(
+			chat_id=update.effective_chat.id,
+			photo=open(PATH_IMAGE, 'rb'))
 
+		elif result == 0:	# No hi ha una ubicacio guardada
+			context.bot.send_message(
+				chat_id=update.effective_chat.id,
+				text="Envia'm la teva localització o indica'n alguna amb la comanda /pos!")
 
-	# Es decideix que ha de mostrar el bot en funcio del resultat obtingut anteriorment
-	if result == 1:		# S'ha trobat un cami correctament
-		context.bot.send_photo(
-		chat_id=update.effective_chat.id,
-		photo=open(PATH_IMAGE, 'rb'))
+		elif result == -1:	# No s'ha pogut trobar un cami
+			context.bot.send_message(
+				chat_id=update.effective_chat.id,
+				text="No s'ha pogut trobar un cami entre l'origen i destí indicats")
 
-	elif result == 0:	# No hi ha una ubicacio guardada
+	except:
 		context.bot.send_message(
 			chat_id=update.effective_chat.id,
-			text="Envia'm la teva localització o indica'n alguna amb la comanda /pos!")
-
-	elif result == -1:	# No s'ha pogut trobar un cami
-		context.bot.send_message(
-			chat_id=update.effective_chat.id,
-			text="No s'ha pogut trobar un cami entre l'origen i destí indicats")
-
+			text="No s'ha pogut trobar el desti demanat")
 
 
 # Si l'usuari ha falsejat la seva ubicacio, la mostra
@@ -178,11 +191,17 @@ def get_position(update, context):
 def pos(update, context):
 
 	# Obtenim les coordenades de la ubicacio indicada en el missatge
-	lat, lon = _get_coords_from_message(update, context, 3)
+	try:
+		lat, lon = _get_coords_from_message(update, context, 3)
+	
+		# Guardem la posicio en user_data
+		context.user_data['use_real_position'] = False
+		context.user_data['false_position'] = (lat, lon)
 
-	# Guardem la posicio en user_data
-	context.user_data['use_real_position'] = False
-	context.user_data['false_position'] = (lat, lon)
+	except:
+		context.bot.send_message(
+			chat_id=update.effective_chat.id,
+			text="No s'ha pogut trobar la posicio demanada")
 
 
 
@@ -224,6 +243,17 @@ def _get_coords_from_message(update, context, comand_size):
 		lon = context.args[1]
 		return (float(lat), float(lon))
 
+
+def _need_to_build_igraph(context):
+
+	t1 = context.user_data['last_congestion_refresh']
+	t2 = time.time()
+
+	if t1 == None or t2 - t1 > 300:
+		context.user_data['last_congestion_refresh'] = t2
+		return True
+
+	return False
 
 
 # Indica que quan el bot rebi la comanda s'executi la funció

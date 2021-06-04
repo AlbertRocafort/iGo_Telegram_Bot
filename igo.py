@@ -17,6 +17,7 @@ import time
 # Constants
 PLACE = 'Barcelona, Catalonia'
 GRAPH_FILENAME = 'barcelona.graph'
+IGRAPH_FILENAME = 'barcelona_i.graph'
 SIZE = 800
 HIGHWAYS_URL = 'https://opendata-ajuntament.barcelona.cat/data/dataset/1090983a-1c40-4609-8620-14ad49aae3ab/resource/1d6c814c-70ef-4147-aa16-a49ddb952f72/download/transit_relacio_trams.csv'
 CONGESTIONS_URL = 'https://opendata-ajuntament.barcelona.cat/data/dataset/8319c2b1-4c21-4962-9acd-6db4c5ff1148/resource/2d456eb5-4ea6-4f68-9794-2f3f1a58a933/download'
@@ -56,16 +57,19 @@ def show_position(lon, lat, image_name):
 
 
 # Desde la posició real o falsejada es retorna una imatge amb el cami mes curt fins el desti
-def shortest_path(org, dest, image_name, use_colors):
-
-    #Obtenir graf, highways y congestions
-    graph = _get_graph(GRAPH_FILENAME)
-    highways = _get_highways()
-    congestions = _get_congestions()
+def shortest_path(org, dest, image_name, use_colors, build_igraph):
 
 
-    # Crear igraph
-    _build_igraph(graph, highways, congestions)
+    if build_igraph:
+        #Obtenir graf, highways i congestions, crea igraph i guardarlo
+        graph = _get_graph(GRAPH_FILENAME)
+        highways = _get_highways()
+        congestions = _get_congestions()
+        _build_igraph(graph, highways, congestions)
+        _save_graph(graph, IGRAPH_FILENAME)
+
+    else:
+        graph = _get_graph(IGRAPH_FILENAME)
 
     # Busquem els nodes origen i desti
     org_node = ox.distance.nearest_nodes(graph, org[0], org[1])
